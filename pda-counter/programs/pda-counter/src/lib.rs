@@ -14,7 +14,7 @@ pub mod pda_counter {
         Ok(())
     }
 
-    pub fn increament(ctx: Context<Initialize>) -> Result<()> {
+    pub fn increment(ctx: Context<Update>) -> Result<()> {
         let c = &mut ctx.accounts.counter;
         require_keys_eq!(
             c.authority,
