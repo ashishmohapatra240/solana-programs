@@ -34,17 +34,22 @@ pub mod todo_crud {
     let todo = &mut ctx.accounts.todo;
 
     if let Some(t) = new_title{
-        require!(new_title.len()<60, TodoError::TitleTooLong);
+        require!(t.len()<60, TodoError::TitleTooLong);
 
         let new_space = 8 + Todo::base_size() + 4 + t.len() + 4 + todo.note.len();
-
-        todo.realloc_if_needed(new_space)?;
+        let current = todo.to_account_info().data_len();
+        if new_space > current {
+            todo.to_account_info().resize(new_space)?;
+        }
         todo.title =t;
     }
     if let Some(n) = new_note {
         require!(n.len() <= 240, TodoError::NoteTooLong);
         let new_space = 8 + Todo::base_size() + 4 + todo.title.len() + 4 + n.len();
-        todo.realloc_if_needed(new_space)?;
+        let current = todo.to_account_info().data_len();
+        if new_space > current {
+            todo.to_account_info().resize(new_space)?;
+        }
         todo.note = n;
     }
     if let Some(d) = done {
@@ -56,10 +61,12 @@ pub mod todo_crud {
    pub fn delete_todo(ctx: Context<DeleteTodo>) ->Result<()> {
     let todo = &mut ctx.accounts.todo;
     let authority = &mut ctx.accounts.authority;
-    **authority.try_borrow_mut_lamports()? += **todo.to_account_info().lamports.borrow();
-
-    **todo.to_account_info().lamports.borrow_mut() = 0;
-    let mut data = todo.to_account_info().data.borrow_mut();
+    let todo_info = todo.to_account_info();
+    
+    **authority.try_borrow_mut_lamports()? += **todo_info.lamports.borrow();
+    **todo_info.lamports.borrow_mut() = 0;
+    
+    let mut data = todo_info.data.borrow_mut();
     for b in data.iter_mut() { *b = 0}
     Ok(())
    }
@@ -67,7 +74,7 @@ pub mod todo_crud {
 
 #[derive(Accounts)]
 pub struct InitUser<'info>{
-    #[accounts(mut)]
+    #[account(mut)]
     pub authority: Signer<'info>,
     #[account(
         init,
@@ -116,7 +123,7 @@ pub struct UpdateTodo<'info>{
 
 #[derive(Accounts)]
 pub struct DeleteTodo<'info>{
-    #[account]
+    #[account(mut)]
     pub authority: Signer<'info>,
     #[account(
         mut, 
@@ -149,15 +156,6 @@ pub struct Todo{
 impl Todo{
     pub fn base_size() -> usize{
         32 + 8+ 1
-    }
-
-    pub fn realloc_if_needed(&mut self, new_space: usize) -> Result<()>{
-        let ai = self.to_account_info();
-        let current = ai.data_len();
-        if new_space >current{
-            ai.realloc(new_space, false)?;
-        }
-        Ok(())
     }
 }
 
